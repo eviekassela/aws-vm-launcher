@@ -1,1 +1,5 @@
-Python script to handle vms in aws-ec2 using boto.
+INSTRUCTIONS
+------------
+To use, simply untar, modify Instance.properties to your needs and run with:
+
+# python Instance.py launch
