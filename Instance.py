@@ -25,10 +25,13 @@ class InstanceHandler:
         self.instance_type = cfg.get("config", "instance_type")
         self.security_group = cfg.get("config", "security_group")
         self.hostname_template = cfg.get("config", "hostname_template")
-        self.conn = boto.ec2.connect_to_region(self.region, aws_access_key_id=self.aws_access_key_id, aws_secret_access_key=self.aws_secret_access_key)
+        self.conn = boto.ec2.connect_to_region(self.region, aws_access_key_id=self.aws_access_key_id, 
+                                               aws_secret_access_key=self.aws_secret_access_key)
     
     def launch(self):
-        reservation = self.conn.run_instances(self.image, min_count=self.count, max_count=self.count, key_name=self.key, security_groups=[self.security_group], instance_type=self.instance_type)
+        reservation = self.conn.run_instances(self.image, min_count=self.count, max_count=self.count, 
+                                              key_name=self.key, security_groups=[self.security_group], 
+                                              instance_type=self.instance_type)
         instances = reservation.instances
         for instance in instances:
             status = instance.update()
