@@ -1,19 +1,18 @@
 '''
-Created on Aug 2, 2013
+Created on Aug 3, 2013
 
 @author: eviek.
 '''
-#!/usr/bin/python2.6
+#!/usr/bin/env python
 
 import boto.ec2
-import sys, time
+import sys, os, time
 from ConfigParser import ConfigParser
 
 class InstanceHandler:
     
     def __init__(self):
-        
-        ## Reads the configuration properties
+        # Read the configuration properties
         cfg = ConfigParser()
         cfg.read("Instance.properties")
         self.aws_access_key_id = cfg.get("config", "aws_access_key_id")
@@ -25,53 +24,103 @@ class InstanceHandler:
         self.instance_type = cfg.get("config", "instance_type")
         self.security_group = cfg.get("config", "security_group")
         self.hostname_template = cfg.get("config", "hostname_template")
-        self.conn = boto.ec2.connect_to_region(self.region, aws_access_key_id=self.aws_access_key_id, 
-                                               aws_secret_access_key=self.aws_secret_access_key)
+        self.availabity_zone = cfg.get("config", "availabity_zone")
+        self.instances = []
     
     def launch(self):
-        reservation = self.conn.run_instances(self.image, min_count=self.count, max_count=self.count, 
-                                              key_name=self.key, security_groups=[self.security_group], 
-                                              instance_type=self.instance_type)
-        instances = reservation.instances
-        for instance in instances:
+        conn = boto.ec2.connect_to_region(self.region, aws_access_key_id=self.aws_access_key_id,
+                                          aws_secret_access_key=self.aws_secret_access_key)
+        # Create private key and save to disk
+        keypair = conn.create_key_pair(self.key)
+        keypair.save("/tmp")
+        # Create simple security group to allow ssh connections
+        self.group = conn.create_security_group(name=self.security_group, description=self.security_group)
+        self.group.authorize('tcp', 22, 22, '0.0.0.0/0')
+        # Launch instances
+        reservation = conn.run_instances(self.image, min_count=self.count, max_count=self.count,
+                                         key_name=self.key, security_groups=[self.group], 
+                                         instance_type=self.instance_type, placement=self.availabity_zone)
+        # Wait for all instances to be up and running
+        self.instances = reservation.instances
+        for instance in self.instances:
             status = instance.update()
             while status == 'pending':
                 time.sleep(2)
                 status = instance.update()
-        count = 0;
+        # Name and list new instances 
+        count = 0
+        hosts = []
+        ips = []
         print "Launched new instances:"
         print "Name\t\tInstance\tHostname"
-        for instance in reservation.instances:
+        for instance in self.instances:
             count += 1
             name = self.hostname_template + str(count)
             instance.add_tag("Name", name)
             print name + "\t" + instance.id + "\t" + instance.public_dns_name
+            hosts.append(instance.public_dns_name)
+            ips.append(instance.private_ip_address)
+        conn.close()
+        # Return list of hostnames
+        return hosts, ips
     
     def terminate(self):
-        reservations = self.conn.get_all_instances(filters={'instance-state-name': 'running'})
-        if reservations:
-            # Get running instances from only 1 reservation
-            instances = reservations[0].instances
+        conn = boto.ec2.connect_to_region(self.region, aws_access_key_id=self.aws_access_key_id,
+                                          aws_secret_access_key=self.aws_secret_access_key)
+        if not self.instances:
+            # Get reservations with running instances
+            reservations = conn.get_all_instances(filters={'instance-state-name': 'running'})
+            if reservations:
+                sys.stdout.write("Terminate all running instances in current reservation? [Y/n] ")
+                answer = raw_input().lower()
+                while answer not in ["", "y", "ye", "yes", "n", "no"]:
+                    print "Please respond with 'yes'/'no' (or 'y'/'n')."
+                    sys.stdout.write("Terminate all running instances in current reservation? [Y/n] ")
+                    answer = raw_input().lower()
+                if answer in ["", "y", "ye", "yes"]:
+                    # Assumes there is one reservation and gets its running instances
+                    self.instances = reservations[0].instances
+        if self.instances:
+            # Create a list of instances' ids
             term = []
-            for instance in instances:
+            for instance in self.instances:
                 term.append(instance.id)
-            terminated = self.conn.terminate_instances(term)
+            # Terminate instances
+            terminated = conn.terminate_instances(term)
             print "Successfully terminated instances: ",
             sys.stdout.write(terminated.pop(0).id)
             for instance in terminated:
                 sys.stdout.write(", " + instance.id)
             sys.stdout.write("\n")
             sys.stdout.flush()
+            if len(term) != len(terminated)+1:
+                print "Failed to terminate all running instances. Please terminate them manually."
+                print "Still running instances:"
+                s = set(terminated)
+                failed = [i for i in term if i not in s]
+                for instance in failed:
+                    print instance
+            # Wait for all instances to completely shut-down
+            for instance in self.instances:
+                status = instance.update()
+                while status == 'shutting-down':
+                    time.sleep(2)
+                    status = instance.update()
+            # Delete created key and security group
+            conn.delete_key_pair(self.key)
+            conn.delete_security_group(self.security_group)
+            os.remove(str('/tmp/' + self.key + '.pem'))
         else:
             print "No running instances to terminate"
+        conn.close()
 
 if __name__ == "__main__":    
-    instance = InstanceHandler()
+    instances = InstanceHandler()
     if len(sys.argv) == 2:
         if 'launch' == sys.argv[1]:
-            instance.launch()
+            instances.launch()
         elif 'terminate' == sys.argv[1]:
-            instance.terminate()
+            instances.terminate()
         else:
             print "Unknown command"
             sys.exit(2)

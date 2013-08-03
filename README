@@ -1,5 +1,13 @@
-INSTRUCTIONS
+Requirements
 ------------
+
+  - python v.2.6 and above
+    System's PYTHONPATH must be set to the latest installed version i.e. /usr/bin/python2.6
+  - boto (v.2.9.9)
+  - paramiko/python-paramiko (v.1.7.6-2)
+
+Use
+---
 To use, simply untar, modify Instance.properties to your needs and run with:
 
-# python Instance.py launch
+# python Execution.py start
