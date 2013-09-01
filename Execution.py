@@ -1,5 +1,5 @@
 '''
-Created on Aug 3, 2013
+Created on Sep 1, 2013
 
 @author: eviek.
 '''
@@ -26,6 +26,7 @@ class Executioner:
             sftp = paramiko.SFTPClient.from_transport(transport)
             # Send file to host[0]
             sftp.put("testfile","/home/ubuntu/testfile")
+            sftp.put("run.sh", "/home/ubuntu/run.sh")
             # Send private key for access to other hosts
             sftp.put(self.key,self.key)
             sftp.close()
@@ -34,17 +35,36 @@ class Executioner:
             ssh.connect(self.hosts[0], username='ubuntu', key_filename=self.key)
             # Set permissions to be able to use the key
             stdin, stdout, stderr = ssh.exec_command('chmod 700 ' + self.key)
+            stdin, stdout, stderr = ssh.exec_command('chmod a+x run.sh')
             # Copy data to other hosts with scp
             # NOTE: only for first connection in other hosts no StrictHostKeyChecking!
             for ip in self.ips[1:]:
                 stdin, stdout, stderr = ssh.exec_command('scp -o StrictHostKeyChecking=no -i '
                                                          +self.key+' testfile ubuntu@'+ip+':~/')
+                stdin, stdout, stderr = ssh.exec_command('scp -i '+self.key+' run.sh ubuntu@'+ip+':~/')
 #                print stdout.readlines(), stderr.readlines()
         except:
             print "An error occurred while transferring data"
             self.instances.terminate()
             raise
         ssh.close()
+        print "Transfer complete"
+        
+    def get_results(self):
+        print "Copying results from remote servers"
+        pkey = paramiko.RSAKey.from_private_key_file(self.key)
+        for host in self.hosts:
+            try:
+                transport = paramiko.Transport((host, 22))
+                transport.connect(username = 'ubuntu', pkey=pkey)
+                transport.open_channel("session", host, "localhost")
+                sftp = paramiko.SFTPClient.from_transport(transport)
+                sftp.get("/home/ubuntu/testfile","resultfile_"+host)
+                sftp.close()
+            except:
+                print "An error occurred while receiving results. Retrieve them manually and handle"
+                print "remaining instances' termination."
+                raise
         print "Transfer complete"
     
     def start(self):
@@ -61,14 +81,17 @@ class Executioner:
             try:
                 ssh.connect(host, username='ubuntu', key_filename=self.key)
                 # Execute command
-                stdin, stdout, stderr = ssh.exec_command('ls')
+                stdin, stdout, stderr = ssh.exec_command('./run.sh')
                 print stdout.readlines()
+#                channel = stdout.channel
+#                status = channel.recv_exit_status()
             except:
                 print "An error occurred while executing commands"
                 self.instances.terminate()
                 raise
             ssh.close()
         print "Finished execution"
+        self.get_results()
         self.instances.terminate()
         
 if __name__ == "__main__":    
