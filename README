@@ -11,3 +11,5 @@ Use
 To use, simply untar, modify Instance.properties to your needs and run with:
 
 # python Execution.py start
+
+This test version executes run.sh remotely, which modifies testfile's contents, and receives the changed file.
