@@ -1,5 +1,5 @@
 '''
-Created on Aug 3, 2013
+Created on Sep 1, 2013
 
 @author: eviek.
 '''
@@ -60,6 +60,7 @@ class InstanceHandler:
             print name + "\t" + instance.id + "\t" + instance.public_dns_name
             hosts.append(instance.public_dns_name)
             ips.append(instance.private_ip_address)
+        print 'Private key path: /tmp/' + self.key + '.pem'
         conn.close()
         # Return list of hostnames
         return hosts, ips
@@ -71,15 +72,17 @@ class InstanceHandler:
             # Get reservations with running instances
             reservations = conn.get_all_instances(filters={'instance-state-name': 'running'})
             if reservations:
-                sys.stdout.write("Terminate all running instances in current reservation? [Y/n] ")
+                sys.stdout.write("Terminate all running instances? [Y/n] ")
                 answer = raw_input().lower()
                 while answer not in ["", "y", "ye", "yes", "n", "no"]:
                     print "Please respond with 'yes'/'no' (or 'y'/'n')."
-                    sys.stdout.write("Terminate all running instances in current reservation? [Y/n] ")
+                    sys.stdout.write("Terminate all running instances? [Y/n] ")
                     answer = raw_input().lower()
                 if answer in ["", "y", "ye", "yes"]:
-                    # Assumes there is one reservation and gets its running instances
-                    self.instances = reservations[0].instances
+                    for r in reservations:
+                        self.instances = self.instances + r.instances
+                else:
+                    print 'Aborted.'
         if self.instances:
             # Create a list of instances' ids
             term = []
@@ -106,10 +109,15 @@ class InstanceHandler:
                 while status == 'shutting-down':
                     time.sleep(2)
                     status = instance.update()
-            # Delete created key and security group
-            conn.delete_key_pair(self.key)
-            conn.delete_security_group(self.security_group)
-            os.remove(str('/tmp/' + self.key + '.pem'))
+            try:
+                # Delete created key and security group
+                conn.delete_key_pair(self.key)
+                conn.delete_security_group(self.security_group)
+                os.remove(str('/tmp/' + self.key + '.pem'))
+                print 'Removed keypair from disk'
+            except:
+                print "There are remaining keypairs and/or security groups. Make sure to delete"
+                print "them if not needed."
         else:
             print "No running instances to terminate"
         conn.close()
