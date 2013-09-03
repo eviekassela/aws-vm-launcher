@@ -1,5 +1,5 @@
 '''
-Created on Sep 1, 2013
+Created on Sep 3, 2013
 
 @author: eviek.
 '''
@@ -72,16 +72,20 @@ class InstanceHandler:
             # Get reservations with running instances
             reservations = conn.get_all_instances(filters={'instance-state-name': 'running'})
             if reservations:
-                sys.stdout.write("Terminate all running instances? [Y/n] ")
+                for r in reservations:
+                    self.instances = self.instances + r.instances
+                sys.stdout.write("Running instances: ")
+                sys.stdout.write(self.instances[0].id)
+                for instance in self.instances[1:]:
+                    sys.stdout.write(", " + instance.id)
+                sys.stdout.write("\nTerminate all running instances? [Y/n] ")
                 answer = raw_input().lower()
                 while answer not in ["", "y", "ye", "yes", "n", "no"]:
                     print "Please respond with 'yes'/'no' (or 'y'/'n')."
                     sys.stdout.write("Terminate all running instances? [Y/n] ")
                     answer = raw_input().lower()
-                if answer in ["", "y", "ye", "yes"]:
-                    for r in reservations:
-                        self.instances = self.instances + r.instances
-                else:
+                if answer in ["n", "no"]:
+                    self.instances = []
                     print 'Aborted.'
         if self.instances:
             # Create a list of instances' ids
@@ -91,12 +95,12 @@ class InstanceHandler:
             # Terminate instances
             terminated = conn.terminate_instances(term)
             print "Successfully terminated instances: ",
-            sys.stdout.write(terminated.pop(0).id)
-            for instance in terminated:
+            sys.stdout.write(terminated[0].id)
+            for instance in terminated[1:]:
                 sys.stdout.write(", " + instance.id)
             sys.stdout.write("\n")
             sys.stdout.flush()
-            if len(term) != len(terminated)+1:
+            if len(term) != len(terminated):
                 print "Failed to terminate all running instances. Please terminate them manually."
                 print "Still running instances:"
                 s = set(terminated)
