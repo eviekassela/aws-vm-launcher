@@ -1,6 +1,5 @@
-echo 'Starting execution'
-sleep 10
+echo 'Write in file'
 echo 'Created file' > testfile
-sleep 5
 echo 'Ok!' >> testfile
-echo 'Finished execution'
+sleep 30
+echo 'Modification complete'
