@@ -5,7 +5,8 @@ Created on Sep 9, 2013
 '''
 #!/usr/bin/env python
 
-import sys, time
+import os, sys, time
+import MySQLdb
 import paramiko
 from Instance import InstanceHandler
 
@@ -14,8 +15,18 @@ class Executioner:
     def __init__(self):
         self.instances = InstanceHandler()
         self.key = str('/tmp/' + self.instances.key + '.pem')
+        if not os.path.isfile(self.key):
+            print "Key doesn't exist. Please make sure it is in the right directory."
+            sys.exit(2)
         #self.data = 0
         #self.totaldata = 0
+    
+    def authenticate(self):
+        db = MySQLdb.connect(host="localhost", user="root", passwd="evie", db="aws_users")
+        cur = db.cursor() 
+        cur.execute("select * from aws_auth where user='evie'")
+        for row in cur.fetchall():
+            print row
         
     def printProgress(self, transferred, totalsize):
         #if (transferred < 32768): #self.data == 0
@@ -109,6 +120,7 @@ class Executioner:
         print "Transfer complete"
     
     def start(self):
+        #self.authenticate()
         self.hosts, self.ips = self.instances.launch()
         # Wait for servers to start all services
         print "Wait 1 minute for servers to be ready"
@@ -128,6 +140,8 @@ if __name__ == "__main__":
             execution.start()
         elif 'stop' == sys.argv[1]:
             execution.stop()
+        elif 'auth' == sys.argv[1]:
+            execution.authenticate()
         else:
             print "Unknown command"
             sys.exit(2)
