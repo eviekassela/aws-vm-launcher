@@ -6,7 +6,6 @@ Created on Sep 9, 2013
 #!/usr/bin/env python
 
 import os, sys, time
-import MySQLdb
 import paramiko
 from Instance import InstanceHandler
 
@@ -14,24 +13,12 @@ class Executioner:
     
     def __init__(self):
         self.instances = InstanceHandler()
-        self.key = str('/tmp/' + self.instances.key + '.pem')
+        self.key = str(self.instances.key + '.pem')
         if not os.path.isfile(self.key):
             print "Key doesn't exist. Please make sure it is in the right directory."
             sys.exit(2)
-        #self.data = 0
-        #self.totaldata = 0
     
-    def authenticate(self):
-        db = MySQLdb.connect(host="localhost", user="root", passwd="evie", db="aws_users")
-        cur = db.cursor() 
-        cur.execute("select * from aws_auth where user='evie'")
-        for row in cur.fetchall():
-            print row
-        
     def printProgress(self, transferred, totalsize):
-        #if (transferred < 32768): #self.data == 0
-        #    self.totaldata = self.totaldata + totalsize
-        #self.data = self.data + transferred
         progress = float(transferred *100 / totalsize)
         fill = int(progress / 2)
         text = "\rProgress: [{0}] {1}%".format( "-"*fill + " "*(50-fill), progress)
@@ -50,7 +37,7 @@ class Executioner:
             sftp = paramiko.SFTPClient.from_transport(transport)
             self.printProgress(0, 1)
             # Send file to host[0]
-            sftp.put("testfile","/home/ubuntu/testfile", callback=self.printProgress)
+            sftp.put("testfile", "/home/ubuntu/testfile", callback=self.printProgress)
             sftp.put("run.sh", "/home/ubuntu/run.sh", callback=self.printProgress)
             # Send private key for access to other hosts
             sftp.put(self.key,self.key)
@@ -75,7 +62,7 @@ class Executioner:
             raise
         ssh.close()
         print "Transfer complete"
-        
+    
     def run(self):
         # Execute commands in all hosts
         print "Starting execution"
@@ -99,7 +86,7 @@ class Executioner:
                 raise
             ssh.close()
         print "Finished execution"
-        
+    
     def get_results(self):
         print "Copying results from remote servers"
         pkey = paramiko.RSAKey.from_private_key_file(self.key)
@@ -120,19 +107,22 @@ class Executioner:
         print "Transfer complete"
     
     def start(self):
-        #self.authenticate()
+#        self.instances.authenticate()
+#        self.instances.get_billing()
         self.hosts, self.ips = self.instances.launch()
         # Wait for servers to start all services
         print "Wait 1 minute for servers to be ready"
         time.sleep(60)
-        self.load_data()
-        self.run()
-        self.get_results()
+        self.instances.set_alarm()
+#        self.load_data()
+#        self.run()
+#        self.get_results()
         self.instances.terminate()
+#        self.instances.get_billing()
     
     def stop(self):
         self.instances.terminate()
-        
+    
 if __name__ == "__main__":
     execution = Executioner()
     if len(sys.argv) == 2:
@@ -140,8 +130,6 @@ if __name__ == "__main__":
             execution.start()
         elif 'stop' == sys.argv[1]:
             execution.stop()
-        elif 'auth' == sys.argv[1]:
-            execution.authenticate()
         else:
             print "Unknown command"
             sys.exit(2)
