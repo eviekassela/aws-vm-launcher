@@ -25,6 +25,7 @@ class InstanceHandler:
         self.security_group = cfg.get("config", "security_group")
         self.hostname_template = cfg.get("config", "hostname_template")
         self.availabity_zone = cfg.get("config", "availabity_zone")
+        self.price = cfg.get("config", "spot_bid_price")
         self.instances = []
         self.alarm = []
         self.initial_charges = 0
@@ -58,7 +59,7 @@ class InstanceHandler:
         # Launch instances
 #        start = datetime.datetime.now().isoformat()
 #        end = (datetime.datetime.now() + datetime.timedelta(minutes=5)).isoformat()
-        requests = conn.request_spot_instances('0.008', self.image, count=self.count, type='one-time',
+        requests = conn.request_spot_instances(self.price, self.image, count=self.count, type='one-time',
                                               #valid_from=start, valid_until=end, launch_group='group_devil',
                                               key_name=self.key, security_groups=[self.security_group],
                                               #user_data=????,
@@ -225,7 +226,7 @@ class InstanceHandler:
                                                      period=3600, evaluation_periods=6,
                                                      description="Alarm to terminate instances if charges exceed limit",
                                                      dimensions={"Currency":"USD"},
-                                                     alarm_actions=['arn:aws:sns:us-east-1:460252822275:devel_charges'])
+                                                     alarm_actions=['arn:aws:sns:us-east-1:....'])
         conn.create_alarm(self.alarm)
         conn.close()
         print 'Created alarm to terminate instances if charge limit is exceeded'
